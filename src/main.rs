@@ -1,43 +1,92 @@
-//declaração da dependência
-use actix_web::{web, App, HttpServer,};
-//módulo: um contâiner de código
-mod handlers;
+use async_std::stream::StreamExt;
+use dotenv::dotenv;
+use mongodb::bson::doc;
+use serde::{Deserialize,Serialize};
+use std::env;
+use tide::{Body, Request, Response, StatusCode};
 
-//função main do nosso servidor
-#[actix_rt::main]
-async fn main() -> std::io::Result<()> {
-    //inicializção do servidor
-    HttpServer::new(move||{
-        //instanciação do Web App
-        App::new()
-        //rotas do servidor com suas respectivas chamadas à API
-        .route("/users", web::get().to(handlers::get_users))
-        .route("/users/{id}", web::get().to(handlers::get_users_id))
-        .route("/users", web::post().to(handlers::post_users))
-        .route("/users/{id}", web::delete().to(handlers::delete_user))
-    })
-    //IP do servidor (localhost)
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+//mod hellos;
+
+#[derive(Clone)]
+pub struct State{
+    db: mongodb::Database,
 }
 
-        
-        /*#[get("/")]
-        async fn hello() -> impl Responder{
-            HttpResponse::Ok().body("Olá server!")
+pub async fn hello(_req: Request<State>) -> tide::Result{
+    return Ok("Hello world".into());
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Item{
+    pub name: String,
+    pub price: f32,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Cliente{
+    nome: String,
+    conta: i32,
+    saldo: f64,
+    pix: i32,
+}
+
+async fn post_item(mut req: Request<State>) -> tide::Result{
+    let item = req.body_json::<Item>().await?;
+
+    let db = &req.state().db;
+
+    let items_collection = db.collection_with_type::<Item>("items");
+
+    items_collection
+        .insert_one(
+            Item{
+                name: item.name,
+                price: item.price,
+            },
+            None,
+        ).await?;
+
+    return Ok(Response::new(StatusCode::Ok));
+}
+
+async fn get_items(req: Request<State>) -> tide::Result<tide::Body>{
+    let db = &req.state().db;
+
+    let items_collection = db.collection_with_type::<Item>("items");
+
+    let mut cursor = items_collection
+            .find(None, None).await?;
+
+    let mut data = Vec::<Item>::new();
+
+    while let Some(result) = cursor.next().await{
+        if let Ok(item) = result{
+            data.push(item);
         }
-        
-        #[post("/echo")]
-        async fn echo(req_body: String) -> impl Responder{
-            HttpResponse::Ok().body(req_body)
-        }
-        
-        async fn manual_hello() -> impl Responder{
-            HttpResponse::Ok().body("Opa, server!")
-        }
-        
-        #[get("/ola")]
-        async fn ola () -> impl Responder{
-            HttpResponse::Ok().body("Isso aqui é uma requisição")
-        }*/
+    }
+
+    return Body::from_json(&data);
+}
+
+
+#[async_std::main]
+async fn main() -> tide::Result<()> {
+    dotenv().ok();
+
+    let mongodb_client_options = 
+        mongodb::options::ClientOptions::parse(&env::var("MONGODB_URI").unwrap()).await?;
+
+    let mongodb_client = mongodb::Client::with_options(mongodb_client_options)?;
+
+    let db = mongodb_client.database("rust-api-example");
+
+    let state = State{db};
+
+    let mut app = tide::with_state(state);
+    app.at("/hello").get(hello);
+    app.at("/items").get(get_items);
+    app.at("/items").post(post_item);
+    app.listen("127.0.0.1:8080").await?;
+
+    return Ok(());
+}
