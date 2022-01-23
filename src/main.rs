@@ -1,5 +1,6 @@
 use dotenv::dotenv;
 use std::env;
+use mongodb;
 
 mod handlers;
 
@@ -18,10 +19,8 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
     //inicializa o cliente mongodb
     let mongodb_client = mongodb::Client::with_options(mongodb_client_options)?;
 
-    
     let db = mongodb_client.database("rust-api-exemplo");
     
-
     let state = State {db};
 
     let mut app = tide::with_state(state);
@@ -31,6 +30,8 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
     app.at("/items").post(handlers::post_item);
     app.at("/clientes").get(handlers::get_cliente);
     app.at("/clientes").post(handlers::post_cliente);
+    app.at("/transf_conta").post(handlers::transf_conta);
+    app.at("/transf_pix").post(handlers::transf_pix);
     app.listen("127.0.0.1:8080").await?; //ouça na porta 8080
 
     return Ok(());
