@@ -25,13 +25,16 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
 
     let mut app = tide::with_state(state);
 
-    app.at("/hello").get(handlers::hello); //endpoint GET/hello. Rode o programa e dê um curl 127.0.0.1:8080/hello: receberás um hello world
+    app.at("/hello").get(handlers::hello);
     app.at("/items").get(handlers::get_items);
     app.at("/items").post(handlers::post_item);
+    
+    
     app.at("/clientes").get(handlers::get_cliente);
     app.at("/clientes").post(handlers::post_cliente);
     app.at("/transf_conta").post(handlers::transf_conta);
     app.at("/transf_pix").post(handlers::transf_pix);
+    app.at("/deposito_TED/:num").get(handlers::deposito_ted);
     app.listen("127.0.0.1:8080").await?; //ouça na porta 8080
 
     return Ok(());
