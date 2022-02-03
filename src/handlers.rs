@@ -10,10 +10,10 @@ pub async fn hello(_req: Request<State>) -> tide::Result {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-// The request's body structure
-pub struct Item {
-  pub name: String,
-  pub price: f32,
+pub struct DadosTed {
+  pub nome: String,
+  pub cpf: i32,
+  pub conta: i32
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,43 +40,64 @@ pub struct Cliente {
     pub pix: i32,
 }
 
-pub async fn deposito_ted(req: Request<State>) -> tide::Result<tide::Body> {
-  let n_conta: i32 = req.param("num")?.parse().unwrap();
-  println!("num: {:?}", n_conta);
+pub async fn exibir_pix(req: Request<State>) -> tide::Result<tide::Body>{
+  
+  let cpf: i32 = req.param("cpf")?.parse().unwrap();
+  
+  println!("num: {:?}", cpf);
+
+  let db = &req.state().db;
+
+  let clientes_collection = db.collection_with_type::<Cliente>("clientes");
+
+  let cliente = clientes_collection.find_one(
+    doc!{
+      "cpf": cpf
+    },
+    None
+  )
+  .await?;
+
+  if let None = cliente{
+    let response = format!("Não foi encontrada chave pix referente ao pedido!");
+    return Body::from_json(&response);
+  }
+
+  let cliente_use = cliente.as_ref().unwrap();
+
+  return Body::from_json(&format!("chave_pix: {}", cliente_use.pix));
+}
+
+pub async fn exibir_ted(req: Request<State>) -> tide::Result<tide::Body> {
+  let cpf: i32 = req.param("cpf")?.parse().unwrap();
+  
   let db = &req.state().db;
   
   let clientes_collection = db.collection_with_type::<Cliente>("clientes");
   
   let cliente = clientes_collection.find_one(
     doc! {
-        "conta": n_conta
+        "cpf": cpf
       },
       None
     )
     .await?;
-      
-    return Body::from_json(&cliente);
-}
-    // Ok(Response::new(StatusCode::Ok))
-    
-pub async fn get_cliente(req: Request<State>) -> tide::Result<tide::Body> {
-
-  let db = &req.state().db;
+   
+  if let None = cliente{
+    let response = format!("Não foi encontrada conta referente ao pedido!");
   
-  let clientes_collection = db.collection_with_type::<Cliente>("clientes");
+    return Body::from_json(&response);
+  }
 
-  let mut cursor = clientes_collection.find(None, None).await?;
-
-  // Create a new empty Vector of Item
-  let mut data = Vec::<Cliente>::new();
-
-  while let Some(result) = cursor.next().await {
-    if let Ok(cliente) = result {
-      data.push(cliente);
-    }
-  }  
-  // Send the response with the list of items
-  return Body::from_json(&data);
+  let cliente_use = cliente.unwrap();
+  
+  let resposta = DadosTed{
+    nome: cliente_use.nome,
+    cpf: cliente_use.cpf,
+    conta: cliente_use.conta,
+  };
+  
+  return Body::from_json(&resposta);
 }
 
 pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
@@ -228,7 +249,7 @@ pub async fn transf_pix(mut req: Request<State>) -> tide::Result{
       println!("Transferencia via pix concluida");
       let mut res = Response::new(200);
 
-      res.set_body(String::from("Transferencia por conta concluida"));
+      res.set_body(String::from("Transferencia via pix concluida"));
     
       return Ok(res);    
     }
@@ -258,53 +279,23 @@ pub async fn post_cliente(mut req: Request<State>) -> tide::Result {
 
   return Ok(Response::new(StatusCode::Ok));
 }
-  
-pub async fn post_item(mut req: Request<State>) -> tide::Result {
-  // Read the request's body and transform it into a struct
-  let item = req.body_json::<Item>().await?;
 
-  println!("{}", item.name.as_str());
-  // Recover the database connection handle from the Tide state
-  let db = &req.state().db;
+pub async fn get_cliente(req: Request<State>) -> tide::Result<tide::Body> {
 
-  // Get a handle to the "items" collection
-  let items_collection = db.collection_with_type::<Item>("items");
-  
-  items_collection
-    .insert_one(
-      Item {
-        name: item.name,
-        price: item.price,
-      },
-      None,
-    )
-    .await?;
-
-  // Return 200 if everything went fine
-  return Ok(Response::new(StatusCode::Ok));
-}
-
-pub async fn get_items(req: Request<State>) -> tide::Result<tide::Body> {
-  // Recover the database connection handle from the Tide state
   let db = &req.state().db;
   
-  // Get a handle to the "items" collection
-  let items_collection = db.collection_with_type::<Item>("items");
-  
-  // Find all the documents from the "items" collection
-  let mut cursor = items_collection.find(None, None).await?;
-  
+  let clientes_collection = db.collection_with_type::<Cliente>("clientes");
+
+  let mut cursor = clientes_collection.find(None, None).await?;
+
   // Create a new empty Vector of Item
-  let mut data = Vec::<Item>::new();
+  let mut data = Vec::<Cliente>::new();
 
-  // Loop through the results of the find query
   while let Some(result) = cursor.next().await {
-    // If the result is ok, add the Item in the Vector
-    if let Ok(item) = result {
-      data.push(item);
+    if let Ok(cliente) = result {
+      data.push(cliente);
     }
-  }
-  
+  }  
   // Send the response with the list of items
   return Body::from_json(&data);
 }
