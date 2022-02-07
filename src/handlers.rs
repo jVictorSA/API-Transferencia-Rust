@@ -1,7 +1,7 @@
 use async_std::stream::StreamExt;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
-use tide::{Body, Request, Response, StatusCode};
+use tide::{Body, Request, Response};
 // use std::path::Path;
 use crate::State;
 
@@ -10,34 +10,40 @@ pub async fn hello(_req: Request<State>) -> tide::Result {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Deposito{
+  pub num: String,
+  pub quantia: f64
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DadosTed {
   pub nome: String,
-  pub cpf: i32,
-  pub conta: i32
+  pub cpf: String,
+  pub conta: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransfConta{
-  pub conta_remetente: i32,
+  pub conta_remetente: String,
   pub quantia: f64,
-  pub conta_destinatario: i32
+  pub conta_destinatario: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransfPix{
-  pub pix_remetente: i32,
+  pub pix_remetente: String,
   pub quantia: f64,
-  pub pix_destinatario: i32
+  pub pix_destinatario: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cliente {
     pub nome: String,
-    pub num: i32, //id
-    pub cpf: i32,
-    pub conta: i32,
+    pub num: String, //id
+    pub cpf: String,
+    pub conta: String,
     pub saldo: f64,
-    pub pix: i32,
+    pub pix: String
 }
 
 pub async fn exibir_pix(req: Request<State>) -> tide::Result<tide::Body>{
@@ -100,8 +106,53 @@ pub async fn exibir_ted(req: Request<State>) -> tide::Result<tide::Body> {
   return Body::from_json(&resposta);
 }
 
+pub async fn auto_deposito(mut req: Request<State>) -> tide::Result{
+  let requisicao = req.body_json::<Deposito>().await?;
+
+  let db = &req.state().db;
+  
+  let clientes_collection = db.collection_with_type::<Cliente>("clientes");
+
+  let option_cliente = clientes_collection.find_one(
+    doc!{
+      "num": requisicao.num
+    },
+    None
+  )
+  .await?;
+
+  if let None = option_cliente {
+    let mut res = Response::new(404);
+    println!("Erro: conta não encontrada");
+
+    let response = format!("Conta do depositante não encontrada!");
+    
+    res.set_body(String::from(response));
+    return Ok(res);
+  }else{
+
+    let cliente = option_cliente.unwrap();
+
+    let _deposito = clientes_collection.update_one(
+      doc!{
+        "num": cliente.num
+
+      }, doc! {
+        "$inc": {"saldo": requisicao.quantia}
+      }, None
+    )
+    .await?;
+  }
+
+  let mut res = Response::new(200);
+
+  res.set_body(String::from("Depósito concluido"));
+    
+  return Ok(res);
+}
+
 pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
-//verify if account was find
+  //verify if account was find
   let transferencia = req.body_json::<TransfConta>().await?;
 
   let db = &req.state().db;
@@ -110,7 +161,7 @@ pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
 
   let rem = clientes_collection.find_one(
     doc! {
-      "conta": transferencia.conta_remetente
+      "conta": transferencia.conta_remetente.clone()
     },
     None
   )
@@ -130,7 +181,7 @@ pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
 
   let destinatario = clientes_collection.find_one(
     doc! {
-      "conta": transferencia.conta_destinatario
+      "conta": transferencia.conta_destinatario.clone()
     },
     None
   )
@@ -145,9 +196,15 @@ pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
   }
 
   if remetente.saldo < transferencia.quantia {
-    let mut res = Response::new(403);
+    let mut res = Response::new(406);
     
     res.set_body(String::from("O saldo da conta é insuficiente"));
+    return Ok(res);
+  }
+  else if transferencia.quantia < 0.0{
+    let mut res = Response::new(406);
+    
+    res.set_body(String::from("A requisição de transferência não pode ter uma quantia negativa!"));
     return Ok(res);
   }
   else {
@@ -188,7 +245,7 @@ pub async fn transf_pix(mut req: Request<State>) -> tide::Result{
 
   let rem = clientes_collection.find_one(
     doc! {
-      "pix": transferencia.pix_remetente
+      "pix": transferencia.pix_remetente.clone()
     },
     None
   )
@@ -206,7 +263,7 @@ pub async fn transf_pix(mut req: Request<State>) -> tide::Result{
 
   let destinatario = clientes_collection.find_one(
     doc! {
-      "pix": transferencia.pix_destinatario
+      "pix": transferencia.pix_destinatario.clone()
     },
     None
   )
@@ -221,12 +278,17 @@ pub async fn transf_pix(mut req: Request<State>) -> tide::Result{
   }
 
   if remetente.saldo < transferencia.quantia {
-    let mut res = Response::new(403);
+    let mut res = Response::new(406);
     
     res.set_body(String::from("O saldo da conta é insuficiente"));
     return Ok(res);
   }
-
+  else if transferencia.quantia < 0.0{
+    let mut res = Response::new(406);
+    
+    res.set_body(String::from("A requisição de transferência não pode ter uma quantia negativa!"));
+    return Ok(res);
+  }
   else {
       clientes_collection.update_one( //update o remetente -> ele perde dinheiro
         doc!{
@@ -277,7 +339,7 @@ pub async fn post_cliente(mut req: Request<State>) -> tide::Result {
     )
     .await?;
 
-  return Ok(Response::new(StatusCode::Ok));
+  return Ok(Response::new(201));
 }
 
 pub async fn get_cliente(req: Request<State>) -> tide::Result<tide::Body> {
