@@ -3,6 +3,9 @@ use std::env;
 use mongodb;
 
 mod handlers;
+mod cliente;
+mod exibir;
+mod transf;
 
 #[derive(Clone, Debug)]
 pub struct State{ //para passar conexão com os controladores do db
@@ -26,13 +29,13 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
     let mut app = tide::with_state(state);
 
 
-    app.at("/clientes").get(handlers::get_cliente);
-    app.at("/registrar").post(handlers::post_cliente);
-    app.at("/transferencia/conta").post(handlers::transf_conta);
-    app.at("/transferencia/pix").post(handlers::transf_pix);
-    app.at("/exibir/ted/:cpf").get(handlers::exibir_ted);
-    app.at("/exibir/pix/:cpf").get(handlers::exibir_pix);
-
+    app.at("/clientes").get(cliente::get_cliente);
+    app.at("/registrar").post(cliente::post_cliente);
+    app.at("/transferencia/conta").post(transf::transf_conta);
+    app.at("/transferencia/pix").post(transf::transf_pix);
+    app.at("/exibir/ted/:cpf").get(exibir::exibir_ted);
+    app.at("/exibir/pix/:cpf").get(exibir::exibir_pix);
+    app.at("/deposito").post(handlers::auto_deposito);
 
     app.at("/hello").get(handlers::hello);
     
