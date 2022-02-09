@@ -54,12 +54,6 @@ pub async fn auto_deposito(mut req: Request<State>) -> tide::Result {
     println!("Erro: conta não encontrada");
 
     let response = format!("Conta do depositante não encontrada!");
-    res.set_body(String::from("Pix do destinatário não encontrado!"));
-    return Ok(res); 
-  }
-
-  if remetente.saldo < transferencia.quantia {
-    let mut res = Response::new(406);
     
     res.set_body(String::from(response));
     return Ok(res);
@@ -78,8 +72,6 @@ pub async fn auto_deposito(mut req: Request<State>) -> tide::Result {
     .await?;
 
   let now = Local::now();
-  return Ok(Response::new(201));
-}
 
   let ans = DepositoResult {
     mensagem: "Depósito realizado com sucesso".to_string(),

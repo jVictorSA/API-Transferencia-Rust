@@ -28,6 +28,7 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
 
     let mut app = tide::with_state(state);
 
+
     app.at("/clientes").get(cliente::get_cliente);
     app.at("/registrar").post(cliente::post_cliente);
     app.at("/transferencia/conta").post(transf::transf_conta);
