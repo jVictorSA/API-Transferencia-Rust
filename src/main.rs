@@ -36,6 +36,8 @@ async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
     app.at("/exibir/ted/:cpf").get(exibir::exibir_ted);
     app.at("/exibir/pix/:cpf").get(exibir::exibir_pix);
     app.at("/deposito").post(handlers::auto_deposito);
+    app.at("/exibir/ted/qr/:cpf").get(exibir::dados_ted_qr);
+    app.at("/exibir/pix/qr/:cpf").get(exibir::dados_pix_qr);
 
     app.at("/hello").get(handlers::hello);
     
