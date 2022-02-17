@@ -1,13 +1,13 @@
-use async_std::stream::StreamExt;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use tide::{Body, Request, Response};
 use crate::State;
-use qrcode_generator::QrCodeEcc;
-// use chrono::Local;
 use crate::cliente::Cliente;
+use qrcode_generator::QrCodeEcc;
 
+
+//resposta com os dados para TED/DOC
+//com uma estrutura mais robusta de cliente, talvez houvesse mais/outros dados
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DadosTed {
   pub nome: String,
@@ -15,14 +15,17 @@ pub struct DadosTed {
   pub conta: String
 }
 
+//resposta com chave pix e nome do cliente
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DadosPix {
   pub nome: String,
   pub chave_pix: String
 }
 
+//exibir os dados necessários para que um terceiro deposite na conta do cliente
+
 pub async fn dados_ted_qr(req: Request<State>) -> tide::Result<tide::Body> {
-  let cpf: String = req.param("cpf")?.parse().unwrap();
+  let cpf: String = req.param("cpf")?.parse().unwrap(); //pega o parâmetro :cpf na url e passa pra string
     
   let db = &req.state().db;
     
@@ -94,8 +97,11 @@ pub async fn dados_pix_qr(req: Request<State>) -> tide::Result<tide::Body> {
   return Body::from_json(&dados_cliente_qr);
 }
 
+
 pub async fn exibir_ted(req: Request<State>) -> tide::Result<tide::Body> {
-    let cpf: String = req.param("cpf")?.parse().unwrap();
+  //com um cliente melhor estruturado, talvez fosse mais apropriado um ID em vez do CPF
+    
+  let cpf: String = req.param("cpf")?.parse().unwrap();
     
     let db = &req.state().db;
     
