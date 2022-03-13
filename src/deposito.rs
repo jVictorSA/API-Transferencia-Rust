@@ -4,12 +4,13 @@ use tide::{Body, Request, Response};
 use crate::State;
 use chrono::Local; //pra pegar data/hora
 use crate::cliente::Cliente; //nossa struct Cliente 
+use std::f64;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DepositoResult { //resposta dada ao fim da função
   pub mensagem: String,
   pub conta: String,
-  pub quantia: f64,
+  pub quantia: String,
   pub data: String,
   pub hora: String,
 }
@@ -18,7 +19,7 @@ pub struct DepositoResult { //resposta dada ao fim da função
 pub struct Deposito { //requisição do depósito
   //com uma estrutura robusta de clientes, talvez houvesse mais dados aqui
   pub conta: String,
-  pub quantia: f64
+  pub quantia: String
 }
 
 //a ideia é o cliente depositar na própria conta, como se pagasse um boleto-depósito
@@ -28,8 +29,10 @@ pub async fn auto_deposito(mut req: Request<State>) -> tide::Result {
   //requisição <JSON> passada pra struct <Deposito>
   let requisicao = req.body_json::<Deposito>().await?; 
 
+  let quantia: f64 = requisicao.quantia.parse().unwrap();
+
   //verificar se a quantia é menor do que 0
-  if requisicao.quantia < 0.0 {
+  if quantia < 0.0 {
     let mut res = Response::new(406); // Response::new(código-padrão http)
     
     //com o set_body, a resposta tem, além do erro, o que estiver dentro dos parênteses
@@ -65,14 +68,19 @@ pub async fn auto_deposito(mut req: Request<State>) -> tide::Result {
     //que é uma espécie de desempacotamento
     //depois disso, ele vira a struct cliente
     let cliente = option_cliente.unwrap();
-
+    
+    let mut saldo: f64 = cliente.saldo.parse().unwrap();
     //aumentando o saldo do cliente
+
+    saldo += quantia;
+
+
     let _deposito = clientes_collection.update_one(
       doc!{
         "conta": cliente.conta.clone()
 
       }, doc! {
-        "$inc": {"saldo": requisicao.quantia}
+        "saldo": f64::to_string(&saldo),
       }, None
     )
     .await?;

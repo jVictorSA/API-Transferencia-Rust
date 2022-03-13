@@ -11,7 +11,7 @@ pub struct Cliente {
     pub num: String, //id
     pub cpf: String,
     pub conta: String,
-    pub saldo: f64,
+    pub saldo: String,
     pub pix: String
 }
 

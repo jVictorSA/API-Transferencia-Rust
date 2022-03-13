@@ -4,13 +4,14 @@ use tide::{Body, Request, Response};
 use crate::State;
 use chrono::Local;
 use crate::cliente::Cliente;
+use std::f64;
 
 #[derive(Debug, Serialize, Deserialize)] 
 pub struct Resposta { //resposta enviada depois que a transferência é concluída 
   pub mensagem: String,
   pub remetente: String,
   pub destinatario: String,
-  pub quantia: f64,
+  pub quantia: String,
   pub data: String,
   pub hora: String
 }
@@ -19,14 +20,14 @@ pub struct Resposta { //resposta enviada depois que a transferência é concluí
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransfConta{ //requisição para transferência TED/DOC
   pub conta_remetente: String,
-  pub quantia: f64,
+  pub quantia: String,
   pub conta_destinatario: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransfPix{ 
   pub pix_remetente: String,
-  pub quantia: f64,
+  pub quantia: String,
   pub pix_destinatario: String
 }
 
@@ -76,36 +77,45 @@ pub async fn transf_conta(mut req: Request<State>) -> tide::Result{
     return Ok(res); 
   }
 
-  if remetente.saldo < transferencia.quantia { //o remetente não pode enviar uma quantia que não tem
+  let dest_un = destinatario.unwrap();
+
+  let mut saldo_remetente: f64 = remetente.saldo.parse().unwrap();
+  let mut saldo_dest: f64 = dest_un.saldo.parse().unwrap();
+  let quantia_transf: f64 = transferencia.quantia.parse().unwrap();
+
+  if saldo_remetente < quantia_transf { //o remetente não pode enviar uma quantia que não tem
     let mut res = Response::new(406);
     
     res.set_body(String::from("O saldo da conta é insuficiente"));
     return Ok(res);
   }
-  else if transferencia.quantia < 0.0{ //o remetente não pode enviar uma quantia negativa
+  else if quantia_transf < 0.0{ //o remetente não pode enviar uma quantia negativa
     let mut res = Response::new(406);
     
     res.set_body(String::from("A requisição de transferência não pode ter uma quantia negativa!"));
     return Ok(res);
   }
   else { //caso esteja tudo certo:
+    //update_one() é do MongoDB: encontra o cliente com os dados do primeiro parâmetro
+    //e atualiza os dados do segundo
+    //aqui nós tiramos o dinheiro do remetente, então diminuímos o saldo da quantia
+    saldo_remetente -= quantia_transf;
+
     clientes_collection.update_one( 
-      //update_one() é do MongoDB: encontra o cliente com os dados do primeiro parâmetro
-      //e atualiza os dados do segundo
-      //aqui nós tiramos o dinheiro do remetente, então diminuímos o saldo da quantia
       doc!{
         "conta": transferencia.conta_remetente.clone(),
       }, doc!{
-        "$inc": {"saldo": -transferencia.quantia} //tire o dinheiro do remetente
+        "saldo":  f64::to_string(&saldo_remetente)
       }, None
     )
     .await?;
-  
+
+    saldo_dest += quantia_transf;
     clientes_collection.update_one(
       doc!{
         "conta": transferencia.conta_destinatario.clone(),
       }, doc!{
-        "$inc": {"saldo": transferencia.quantia} //soma o dado do destinatário pela quantia
+        "saldo": f64::to_string(&saldo_dest)
       }, None
     )
     .await?;
@@ -175,46 +185,56 @@ pub async fn transf_pix(mut req: Request<State>) -> tide::Result{
     return Ok(res); 
   }
 
-  if remetente.saldo < transferencia.quantia {
+  let dest_un = destinatario.unwrap();
+
+  let mut saldo_remetente: f64 = remetente.saldo.parse().unwrap();
+  let mut saldo_dest: f64 = dest_un.saldo.parse().unwrap();
+  let quantia_transf: f64 = transferencia.quantia.parse().unwrap();
+
+
+  if saldo_remetente < quantia_transf {
     let mut res = Response::new(406);
     
     res.set_body(String::from("O saldo da conta é insuficiente"));
     return Ok(res);
   }
-  else if transferencia.quantia < 0.0{
+  else if quantia_transf < 0.0 {
     let mut res = Response::new(406);
     
     res.set_body(String::from("A requisição de transferência não pode ter uma quantia negativa!"));
     return Ok(res);
   }
   else {
-      clientes_collection.update_one( //update o remetente -> ele perde dinheiro
-        doc!{
-          "pix": transferencia.pix_remetente.clone(),
-        }, doc!{
-          "$inc": {"saldo": -transferencia.quantia}
-        }, None
-      )
-      .await?;
+    saldo_remetente -= quantia_transf;
+
+    clientes_collection.update_one( //update o remetente -> ele perde dinheiro
+      doc!{
+        "pix": transferencia.pix_remetente.clone(),
+      }, doc!{
+        "saldo": f64::to_string(&saldo_remetente),
+      }, None
+    )
+    .await?;
+  
+    saldo_dest += quantia_transf;
+    clientes_collection.update_one( //update o destinatario -> ele aumenta dinheiro
+      doc!{
+        "pix": transferencia.pix_destinatario.clone(),
+      }, doc!{
+        "saldo": f64::to_string(&saldo_dest),
+      }, None
+    )
+    .await?;
+    let now = Local::now();
     
-      clientes_collection.update_one( //update o destinatario -> ele aumenta dinheiro
-        doc!{
-          "pix": transferencia.pix_destinatario.clone(),
-        }, doc!{
-          "$inc": {"saldo": transferencia.quantia}
-        }, None
-      )
-      .await?;
-      let now = Local::now();
-      
-      let ans = Resposta {
-        mensagem: "Transferência via pix concluída".to_string(),
-        remetente: transferencia.pix_remetente,
-        destinatario: transferencia.pix_destinatario,
-        quantia: transferencia.quantia,
-        data: now.format("%d-%m-%Y").to_string(),
-        hora: now.format("%H:%M:%S").to_string()
-      };
+    let ans = Resposta {
+      mensagem: "Transferência via pix concluída".to_string(),
+      remetente: transferencia.pix_remetente,
+      destinatario: transferencia.pix_destinatario,
+      quantia: transferencia.quantia,
+      data: now.format("%d-%m-%Y").to_string(),
+      hora: now.format("%H:%M:%S").to_string()
+    };
 
       println!("Transferencia via pix concluida");
       let mut res = Response::new(200);

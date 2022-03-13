@@ -2,6 +2,9 @@ use dotenv::dotenv;
 use std::env;
 use mongodb;
 use tide::Request;
+// use http_types::headers::HeaderValue;
+use tide::security::{CorsMiddleware, Origin};
+
 
 mod deposito; //deposito em que o dinheiro cai na conta na hora, desse tipo que não exige que o depositante seja cliente do banco
 mod cliente; //nosso cliente fictício, para usar nas funções
@@ -20,20 +23,26 @@ pub async fn hello(_req: Request<State>) -> tide::Result {
 #[async_std::main] //isso torna a main assíncrona
 async fn main() -> tide::Result<()> { //tide::result retorna Ok(()) ou um erro
     dotenv().ok(); //ler o .env e adicionar as variáveis do environment
-
+    
     //criar as opções do cliente MongoDB com a string de conexão das variáveis de environment
     let mongodb_client_options = mongodb::options::ClientOptions::parse(&env::var("MONGODB_URI").unwrap()).await?;
     
     //inicializa o cliente mongodb
     let mongodb_client = mongodb::Client::with_options(mongodb_client_options)?;
-
+    
     let db = mongodb_client.database("rust-api-exemplo"); //nossa database
     
     let state = State {db};
-
+    
+    let cors = CorsMiddleware::new()
+    // .allow_methods("GET, POST, OPTIONS".parse::<HeaderValue>().unwrap())
+    .allow_origin(Origin::from("*"))
+    .allow_credentials(false);
+    
     let mut app = tide::with_state(state); //chama o tide
+    
+    app.with(cors);
 
-    //todos os endpoints (URL) abaixo
     app.at("/clientes").get(cliente::get_cliente);
     app.at("/registrar").post(cliente::post_cliente);
     app.at("/transferencia/conta").post(transf::transf_conta);
