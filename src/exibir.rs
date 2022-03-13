@@ -1,7 +1,10 @@
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use tide::{Body, Request, Response};
 use crate::State;
+use qrcode_generator::QrCodeEcc;
+// use chrono::Local;
 use crate::cliente::Cliente;
 use qrcode_generator::QrCodeEcc;
 
@@ -96,7 +99,6 @@ pub async fn dados_pix_qr(req: Request<State>) -> tide::Result<tide::Body> {
   
   return Body::from_json(&dados_cliente_qr);
 }
-
 
 pub async fn exibir_ted(req: Request<State>) -> tide::Result<tide::Body> {
   //com um cliente melhor estruturado, talvez fosse mais apropriado um ID em vez do CPF

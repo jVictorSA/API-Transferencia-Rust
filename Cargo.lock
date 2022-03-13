@@ -2119,6 +2119,7 @@ dependencies = [
  "qrcode-generator",
  "quircs",
  "serde",
+ "serde_json",
  "tide",
 ]
 
